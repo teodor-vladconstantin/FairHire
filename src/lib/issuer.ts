@@ -60,20 +60,55 @@ export function generateCandidateSecret(): string {
 }
 
 /**
- * expectedCommitment = persistent_hash([issuerPublicKey, matchScore, meetsMinCriteria])
- * Mirrors the assertion made inside contracts/eligibility.compact.
+ * expectedCommitment = persistentHash<[Bytes<32>, Uint<8>, Boolean]>(
+ *   [issuerPublicKey, matchScore, meetsMinCriteria]
+ * )
+ * Mirrors the assertion made inside contracts/eligibility.compact exactly —
+ * computed via the real Midnight runtime's `persistentHash` over the
+ * aligned tuple encoding, not a generic string hash, since that's what the
+ * circuit itself checks against. The runtime's `persistentHash` depends on
+ * native WASM that only runs server-side, so this delegates to
+ * src/app/api/attest/route.ts. Falls back to the previous local
+ * approximation only if that request fails for any reason, so the app
+ * never breaks outright — that fallback signature will not satisfy the
+ * real circuit's assertion, so it only matters for Mock Proof Mode.
  */
 export async function generateAttestation(
   matchScore: number,
   meetsMinCriteria: boolean
 ): Promise<Attestation> {
-  const issuerSignature = await sha256Hex(
-    `${ISSUER_PUBLIC_KEY}:${matchScore}:${meetsMinCriteria}`
-  );
+  const issuerSignature = await computeIssuerSignature(matchScore, meetsMinCriteria);
   return {
     matchScore,
     meetsMinCriteria,
     issuerPublicKey: ISSUER_PUBLIC_KEY,
     issuerSignature,
   };
+}
+
+async function computeIssuerSignature(
+  matchScore: number,
+  meetsMinCriteria: boolean
+): Promise<string> {
+  try {
+    const res = await fetch("/api/attest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ matchScore, meetsMinCriteria }),
+    });
+    if (!res.ok) {
+      throw new Error(`attest request failed: ${res.status}`);
+    }
+    const data = await res.json();
+    if (typeof data.issuerSignature !== "string") {
+      throw new Error("attest response missing issuerSignature");
+    }
+    return data.issuerSignature;
+  } catch (err) {
+    console.warn(
+      "Real persistentHash attestation unavailable, falling back to local approximation:",
+      err
+    );
+    return sha256Hex(`${ISSUER_PUBLIC_KEY}:${matchScore}:${meetsMinCriteria}`);
+  }
 }

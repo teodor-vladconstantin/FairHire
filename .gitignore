@@ -27,5 +27,9 @@ yarn-error.log*
 # compact
 contracts/managed/
 
+# ZK trusted-setup params cache (fetched from the Compact compiler's local
+# cache; large, regenerable, machine-specific — see src/app/api/generate-proof)
+/.zk-params/
+
 # claude code local session state
 .claude/
