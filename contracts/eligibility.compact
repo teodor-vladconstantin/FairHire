@@ -1,0 +1,44 @@
+pragma language_version >= 0.26;
+
+import CompactStandardLibrary;
+
+export ledger qualifiesCount: Counter;
+
+export ledger usedNullifiers: Map<Bytes<32>, Boolean>;
+
+export circuit verifyAndApply(
+                 matchScore: Uint<8>,
+                 meetsMinCriteria: Boolean,
+                 candidateSecret: Bytes<32>,
+                 issuerPublicKey: Bytes<32>,
+                 issuerSignature: Bytes<32>,
+                 jobId: Bytes<32>,
+                 minScoreThreshold: Uint<8>
+                 ): [] {
+  // 1. Verify Issuer Attestation
+  const expectedCommitment =
+          persistentHash<[Bytes<32>, Uint<8>, Boolean]>(
+            [issuerPublicKey, matchScore, meetsMinCriteria]
+            );
+  assert(issuerSignature == expectedCommitment, "Invalid Score Attestation!");
+
+  // 2. Prevent Replay via Nullifier
+  //    Disclosure #1: the nullifier itself becomes public. It is a one-way
+  //    hash of (candidateSecret, jobId), so it leaks neither the secret nor
+  //    any qualification data — it only makes replays detectable.
+  const nullifier = disclose(persistentHash<Vector<2, Bytes<32>>>([candidateSecret, jobId]));
+  assert(!usedNullifiers.member(nullifier), "Proof already used for this job!");
+
+  // 3. Evaluate Composite Criteria
+  const satisfiesScore = matchScore >= minScoreThreshold;
+  const qualifies = satisfiesScore && meetsMinCriteria;
+
+  // 4. Selective Disclosure
+  usedNullifiers.insert(nullifier, true);
+
+  // Disclosure #2: the single boolean verdict. matchScore itself stays private.
+  const publicQualifies = disclose(qualifies);
+  if (publicQualifies) {
+    qualifiesCount.increment(1);
+  }
+}
