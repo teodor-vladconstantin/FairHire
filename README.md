@@ -89,8 +89,10 @@ docker compose up -d        # starts the Midnight proof server on :6300
 npm run dev                 # http://localhost:3000
 ```
 
-Compile the contract (compiled output is gitignored, so this is needed once
-per clone, or after editing `contracts/eligibility.compact`):
+`contracts/managed/` (the compiled circuit, PLONK keys, and ZKIR) is
+committed to this repo, so a fresh clone — including Vercel's build — works
+without installing the Compact CLI. Only re-run the compile step below after
+editing `contracts/eligibility.compact`, then commit the regenerated output:
 
 ```bash
 compact compile contracts/eligibility.compact contracts/managed/eligibility

@@ -1,0 +1,7 @@
+# contracts/managed/ is compact compile's output, committed so Vercel (and
+# any fresh clone) can build without the Compact CLI installed. .prover/
+# .verifier/.bzkir are genuinely binary (PLONK keys, packed ZKIR) — mark
+# them explicitly so core.autocrlf never rewrites their bytes.
+*.prover binary
+*.verifier binary
+*.bzkir binary
