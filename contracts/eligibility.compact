@@ -1,10 +1,15 @@
-pragma language_version >= 0.26;
+pragma language_version >= 0.23.0;
 
 import CompactStandardLibrary;
 
 export ledger qualifiesCount: Counter;
 
 export ledger usedNullifiers: Map<Bytes<32>, Boolean>;
+
+// Expiry timestamp (Unix epoch seconds) recorded alongside each nullifier at
+// the moment it was accepted — see step 0 below. Additive to usedNullifiers,
+// not a replacement: existing readers of usedNullifiers are unaffected.
+export ledger nullifierExpiry: Map<Bytes<32>, Uint<64>>;
 
 export circuit verifyAndApply(
                  matchScore: Uint<8>,
@@ -13,8 +18,15 @@ export circuit verifyAndApply(
                  issuerPublicKey: Bytes<32>,
                  issuerSignature: Bytes<32>,
                  jobId: Bytes<32>,
-                 minScoreThreshold: Uint<8>
+                 minScoreThreshold: Uint<8>,
+                 expiryTimestamp: Uint<64>
                  ): [] {
+  // 0. Reject proofs for job postings that have already expired. Compared
+  //    against the ledger's own block time (blockTimeLt), not the client's
+  //    clock, so a candidate can't backdate an expired posting by lying
+  //    about the current time.
+  assert(blockTimeLt(disclose(expiryTimestamp)), "Job posting has expired!");
+
   // 1. Verify Issuer Attestation
   const expectedCommitment =
           persistentHash<[Bytes<32>, Uint<8>, Boolean]>(
@@ -35,8 +47,12 @@ export circuit verifyAndApply(
 
   // 4. Selective Disclosure
   usedNullifiers.insert(nullifier, true);
+  // Disclosure #2: the expiry this proof was checked against. Public by
+  // design — the employer's Payload Inspector shows it alongside the
+  // verdict so the expiry check is itself auditable, not just asserted.
+  nullifierExpiry.insert(nullifier, disclose(expiryTimestamp));
 
-  // Disclosure #2: the single boolean verdict. matchScore itself stays private.
+  // Disclosure #3: the single boolean verdict. matchScore itself stays private.
   const publicQualifies = disclose(qualifies);
   if (publicQualifies) {
     qualifiesCount.increment(1);

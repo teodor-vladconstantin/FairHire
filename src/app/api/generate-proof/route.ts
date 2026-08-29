@@ -19,6 +19,7 @@ export async function POST(request: Request) {
 
     const matchScore = BigInt(Number(body?.matchScore));
     const minScoreThreshold = BigInt(Number(body?.minScoreThreshold));
+    const expiryTimestamp = BigInt(Number(body?.expiryTimestamp));
     const meetsMinCriteria = Boolean(body?.meetsMinCriteria);
     const candidateSecret = fromHex(String(body?.candidateSecret ?? ""));
     // issuerPublicKey arrives as issuer.ts's ISSUER_PUBLIC_KEY constant,
@@ -37,6 +38,9 @@ export async function POST(request: Request) {
     if (matchScore < 0n || matchScore > 255n || minScoreThreshold < 0n || minScoreThreshold > 255n) {
       return NextResponse.json({ error: "matchScore and minScoreThreshold must be in [0, 255]" }, { status: 400 });
     }
+    if (expiryTimestamp < 0n) {
+      return NextResponse.json({ error: "expiryTimestamp must be a non-negative Unix timestamp" }, { status: 400 });
+    }
 
     const result = await generateRealProof({
       matchScore,
@@ -46,6 +50,7 @@ export async function POST(request: Request) {
       issuerSignature,
       jobId,
       minScoreThreshold,
+      expiryTimestamp,
     });
 
     return NextResponse.json({

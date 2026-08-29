@@ -27,6 +27,8 @@ export interface ProofRequestPayload {
   issuerSignature: string;
   jobId: string;
   minScoreThreshold: number;
+  /** Unix epoch seconds. The circuit rejects the proof once block time >= this. */
+  expiryTimestamp: number;
 }
 
 export interface ProofResult {
@@ -96,35 +98,64 @@ export async function generateProof(
 }
 
 async function generateRealProof(payload: ProofRequestPayload): Promise<ProofResult> {
-  const res = await fetch("/api/generate-proof", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-    // Real PLONK proving can take up to ~30s for larger circuits.
-    signal: AbortSignal.timeout(45000),
-  });
-
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(
-      typeof body?.error === "string" ? body.error : `generate-proof request failed: ${res.status}`
+  // Real PLONK proving time varies a lot under load (observed 12.6s-52s
+  // across runs, not just the ~30s worst case previously assumed), so this
+  // uses a generous 90s ceiling. AbortSignal.timeout() alone can't log
+  // anything when it fires, so this rolls its own timer to report exactly
+  // how long the request had been waiting the moment it gives up — that
+  // tells us whether a future timeout is too short or the proof server
+  // itself is genuinely hanging.
+  const timeoutMs = 90_000;
+  const startedAt = Date.now();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    const elapsedMs = Date.now() - startedAt;
+    console.log(
+      `[generateRealProof] timing out after ${elapsedMs}ms (limit ${timeoutMs}ms) — aborting /api/generate-proof`,
     );
-  }
+    controller.abort();
+  }, timeoutMs);
 
-  const data = await res.json();
-  if (typeof data.nullifier !== "string" || typeof data.zkProof !== "string") {
-    throw new Error("generate-proof response missing nullifier/zkProof");
-  }
+  try {
+    const res = await fetch("/api/generate-proof", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
 
-  return {
-    nullifier: data.nullifier,
-    qualifies: Boolean(data.qualifies),
-    zkProof: data.zkProof,
-    mode: "live",
-  };
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(
+        typeof body?.error === "string" ? body.error : `generate-proof request failed: ${res.status}`
+      );
+    }
+
+    const data = await res.json();
+    if (typeof data.nullifier !== "string" || typeof data.zkProof !== "string") {
+      throw new Error("generate-proof response missing nullifier/zkProof");
+    }
+
+    return {
+      nullifier: data.nullifier,
+      qualifies: Boolean(data.qualifies),
+      zkProof: data.zkProof,
+      mode: "live",
+    };
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 async function generateMockProof(payload: ProofRequestPayload): Promise<ProofResult> {
+  // Mirrors the circuit's own step-0 assertion (`blockTimeLt(expiryTimestamp)`)
+  // so an expired posting is rejected consistently whether or not this
+  // request ended up falling back from live proving to Mock Proof Mode.
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  if (nowSeconds >= payload.expiryTimestamp) {
+    throw new Error("Job posting has expired!");
+  }
+
   const nullifier = await sha256Hex(`${payload.candidateSecret}:${payload.jobId}`);
   const satisfiesScore = payload.matchScore >= payload.minScoreThreshold;
   const qualifies = satisfiesScore && payload.meetsMinCriteria;
@@ -150,6 +181,8 @@ export interface TransactionPayload {
   disclosed: {
     nullifier: string;
     qualifies: boolean;
+    /** Unix epoch seconds — written to the ledger's nullifierExpiry map. */
+    expiryTimestamp: number;
   };
   zkProof: string;
   hidden: {
@@ -165,7 +198,8 @@ export function buildTransactionPayload(
   attestation: Attestation,
   proof: ProofResult,
   jobId: string,
-  minScoreThreshold: number
+  minScoreThreshold: number,
+  expiryTimestamp: number
 ): TransactionPayload {
   return {
     circuit: "verifyAndApply",
@@ -177,6 +211,7 @@ export function buildTransactionPayload(
     disclosed: {
       nullifier: proof.nullifier,
       qualifies: proof.qualifies,
+      expiryTimestamp,
     },
     zkProof: proof.zkProof,
     hidden: {

@@ -146,6 +146,7 @@ export interface RealProofInput {
   issuerSignature: Uint8Array;
   jobId: Uint8Array;
   minScoreThreshold: bigint;
+  expiryTimestamp: bigint;
 }
 
 export interface RealProofOutput {
@@ -166,13 +167,7 @@ const nullifierType = new rt.CompactTypeVector(2, new rt.CompactTypeBytes(32));
  */
 export async function generateRealProof(input: RealProofInput): Promise<RealProofOutput> {
   const state = await getLedgerState();
-  const context = rt.createCircuitContext(
-    "verifyAndApply",
-    rt.dummyContractAddress(),
-    COIN_PUBLIC_KEY,
-    state,
-    {},
-  );
+  const context = rt.createCircuitContext(rt.dummyContractAddress(), COIN_PUBLIC_KEY, state, {});
 
   const callResult = await contract.circuits.verifyAndApply(
     context,
@@ -183,14 +178,14 @@ export async function generateRealProof(input: RealProofInput): Promise<RealProo
     input.issuerSignature,
     input.jobId,
     input.minScoreThreshold,
+    input.expiryTimestamp,
   );
 
   // Circuit execution succeeded (all `assert`s passed) — commit the updated
   // ledger state so the nullifier is genuinely marked used for next time.
-  ledgerState = new rt.ChargedState(callResult.context.callContext.currentQueryContext.state.state);
+  ledgerState = new rt.ChargedState(callResult.context.currentQueryContext.state.state);
 
-  const trace = callResult.context.callProofDataTrace;
-  const proofData = trace[trace.length - 1];
+  const proofData = callResult.proofData;
 
   const nullifier = rt.persistentHash(nullifierType, [input.candidateSecret, input.jobId]);
   const qualifies = input.matchScore >= input.minScoreThreshold && input.meetsMinCriteria;

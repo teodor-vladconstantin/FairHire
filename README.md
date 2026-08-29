@@ -1,119 +1,181 @@
 # FairHire
 
-Bias-free candidate screening for the **MLH x Midnight Hackathon** (August 28–30, 2026).
+**Track:** Best Beginner Hack — first hackathon
+**Event:** MLH x Midnight Hackathon (August 28–30, 2026)
 
-**Track:** Best Beginner Hack (first hackathon)
-**Author:** Duku Constantin (solo)
-
-## The problem
-
-Recruitment screening carries bias before a candidate's qualifications are ever
-evaluated: names, age, gender, and photos on a CV influence the decision before
-skills do.
-
-## The solution
-
-The candidate enters qualification data only (years of experience, skills,
-certifications — no name, age, gender, or photo). A local, deterministic,
-transparent formula computes a match score against a job's requirements. A
-Compact circuit on Midnight Network proves *"this candidate qualifies"*
-without ever revealing the raw inputs to the employer. The employer's
-screening view shows only a boolean qualified/not-qualified result plus an
-anti-replay nullifier — never the underlying CV data.
-
-The scoring formula is a simple, explicitly-chosen weighted sum — not a model
-trained on a dataset. That's a deliberate business argument: deterministic and
-auditable, with no black-box that could discriminate illegally, rather than a
-limitation.
+Recruitment screening is biased before a candidate's qualifications are ever
+evaluated — names, age, gender, and photos influence the decision before
+skills do. FairHire lets a candidate prove *"I qualify for this job"* with a
+zero-knowledge proof on Midnight Network, so the employer's screening view
+sees only a qualified/not-qualified result and an anti-replay nullifier —
+never the CV behind it.
 
 ## Architecture
 
-- **Contract:** Compact (`contracts/eligibility.compact`), compiled for the
-  Midnight Proof Server.
-- **Frontend:** Next.js (App Router, TypeScript) + Tailwind CSS + lucide-react.
-- **Scoring:** 100% local, runs in the browser, never touches a server
-  (`src/lib/scoring.ts`).
-- **Mock issuer:** local SHA-256-based attestation authority for the demo
-  (`src/lib/issuer.ts`).
-- **Midnight client:** talks to a local Proof Server at `http://localhost:6300`,
-  falling back to a Mock Proof Mode when it's unavailable so the demo always
-  runs (`src/lib/midnight.ts`).
+```mermaid
+flowchart LR
+    Candidate(["Candidate
+    years · skills · certs"]) --> Scoring["Local deterministic scoring
+    scoring.ts — runs in browser"]
+    Scoring --> Circuit
 
-### Core cryptographic logic
+    subgraph Circuit["Compact circuit — verifyAndApply"]
+        direction TB
+        Expiry["Expiry check
+        blockTimeLt(expiryTimestamp)"]
+        Attest["Attestation check
+        persistentHash == issuerSignature"]
+        Null["Nullifier anti-replay
+        persistentHash(candidateSecret, jobId)"]
+        Disc["Selective disclosure
+        only nullifier + qualifies + expiryTimestamp leave the circuit"]
+        Expiry --> Attest --> Null --> Disc
+    end
 
-1. **Attestation check:** `persistent_hash([issuerPK, matchScore, meetsMinCriteria]) == issuerSignature`
-2. **Nullifier anti-replay:** `nullifier = persistent_hash([candidateSecret, jobId])`, recorded in the public `usedNullifiers` ledger map.
-3. **Composite ZK predicate:** `matchScore >= minScoreThreshold AND meetsMinCriteria`.
-4. **Selective disclosure:** only `nullifier` and `qualifies` are ever disclosed on-chain.
+    Circuit --> Ledger[("Midnight ledger
+    qualifiesCount · usedNullifiers · nullifierExpiry")]
+    Ledger --> Employer(["Employer view
+    qualified / not qualified only"])
+```
 
-## Running locally
+The match score itself is a simple, explicitly-chosen weighted formula, not a
+trained model — deterministic and auditable, with no black box that could
+discriminate illegally.
+
+## Features
+
+The app has four screens: **Candidate** (generate a proof), **Employer**
+(the qualification-only dashboard + ROI calculator), **Compare** (side-by-side
+contrast), and the **Payload Inspector** modal (what's actually in the
+transaction).
+
+### Nullifier expiry
+
+Every proof is scoped to a job posting's expiry — set on the Candidate form
+as "Job posting expires in (days)" — so a proof generated for a since-expired
+posting can't be submitted, and an old proof can't be replayed against a job
+that's no longer accepting applications. The expiry timestamp is itself
+disclosed on-chain (visible in the Payload Inspector, next to the nullifier
+and the verdict) so the check is auditable, not just asserted. See
+[How nullifier expiry works](#how-nullifier-expiry-works) below.
+
+### Compare — see the difference
+
+A side-by-side view of the same candidate going through two hiring flows: a
+traditional application (fictional name, age, photo placeholder, full resume
+text) next to what FairHire's employer screen actually receives (a
+qualified/not-qualified verdict and a nullifier — nothing else). Once you've
+generated a proof in the Candidate tab, the FairHire side reflects your real
+result instead of illustrative data.
+
+### ROI calculator
+
+A small, honestly-framed estimator on the Employer tab: given "applications
+per month," it estimates how many screening decisions per month/year could
+be affected by name-based signal, using the average contact-rate gap from
+Kline, Rose & Walters (2022), *Systemic Discrimination Among Large U.S.
+Employers* (QJE) — 2.1 percentage points across 83,000+ real applications to
+108 large U.S. employers — alongside Bertrand & Mullainathan (2004), *Are
+Emily and Greg More Employable Than Lakisha and Jamal?* (AER), for context.
+Both are cited inline with links to the source. Framed explicitly as an
+estimate based on published research, not a guaranteed outcome for any
+specific employer.
+
+## Setup & run
 
 ```bash
 npm install
-npm run dev
+docker compose up -d        # starts the Midnight proof server on :6300
+npm run dev                 # http://localhost:3000
 ```
 
-Open http://localhost:3000. Use the **Candidate** tab to pick a preset profile,
-set job requirements, and generate a ZK proof. Switch to the **Employer** tab
-to see the qualification-only dashboard. The **Payload Inspector** modal opens
-automatically after each proof, showing exactly what stays private vs. what's
-sent on-chain.
-
-To compile the contract (Compact CLI 0.34.0 / language version 0.26 — on Windows the
-CLI only runs inside WSL, since `compact` on the native PATH collides with the
-Windows built-in NTFS-compression tool of the same name):
+Compile the contract (compiled output is gitignored, so this is needed once
+per clone, or after editing `contracts/eligibility.compact`):
 
 ```bash
-wsl.exe -d Ubuntu -- bash -lc "cd /mnt/c/path/to/FairHire && compact compile contracts/eligibility.compact contracts/managed/eligibility"
+compact compile contracts/eligibility.compact contracts/managed/eligibility
 ```
 
-This produces `contracts/managed/eligibility/{contract,keys,zkir,compiler}` —
-the compiled circuit, PLONK prover/verifier keys, and ZKIR. The circuit was
-exercised directly against `@midnight-ntwrk/compact-runtime` (valid
-attestation, replay, forged score, sub-threshold score, and
-`meetsMinCriteria == false` cases) and every assertion fired as designed.
+> On Windows, `compact` on the native PATH is the OS's NTFS-compression tool,
+> not the Midnight CLI — run it inside WSL instead:
+> `wsl.exe -d Ubuntu -- bash -lc "cd /mnt/c/path/to/FairHire && compact compile contracts/eligibility.compact contracts/managed/eligibility"`
 
-### Known limitation / production roadmap
+With the proof server running, open the **Candidate** tab, pick a preset,
+and generate a proof (real PLONK proving, ~12–15s). Switch to **Employer**
+for the qualification-only dashboard and the ROI calculator, **Compare** to
+see the same candidate go through both hiring flows side by side, and use
+the **Payload Inspector** modal to see exactly what stays private vs. what's
+disclosed.
 
-`src/lib/scoring.ts`, `src/lib/issuer.ts`, and `src/lib/midnight.ts` reproduce
-the circuit's logic (attestation check, nullifier, composite predicate) in
-plain browser JS with `crypto.subtle.digest`, exactly as the "Mock Proof
-Mode" this spec calls for — the app never leaves the browser and needs no
-running Proof Server to demo end-to-end. That mock hash does **not** binary-
-match `persistentHash` over Midnight's aligned tuple encoding, so it can't be
-swapped in as-is against the real deployed circuit; wiring an actual
-transaction against `contracts/managed/eligibility` would mean computing the
-attestation with `@midnight-ntwrk/compact-runtime`'s own `persistentHash` (a
-Node/WASM API) rather than Web Crypto, plus a deployment + wallet + proof
-server flow — out of scope for this hackathon window, and explicitly what
-"Mock Proof Mode" is for per this project's spec.
+Run the circuit's test suite (executes the compiled `verifyAndApply` circuit
+directly via `@midnight-ntwrk/compact-runtime`, no proof server needed):
 
-### Compact syntax notes
+```bash
+npm test
+```
 
-The spec draft in `CLAUDE.md` targeted an earlier Compact syntax; the actual
-compiler (0.34.0) required these adaptations, discovered by compiling and
-iterating rather than assumed:
+## How nullifier expiry works
 
-- `persistent_hash` → `persistentHash` (camelCase).
-- The hash's type parameter is the **input** type, not the output (output is
-  always `Bytes<32>`). Hashing three different types (`Bytes<32>`, `Uint<8>`,
-  `Boolean`) needs a tuple type; hashing two `Bytes<32>` values (the
-  nullifier) uses `Vector<2, Bytes<32>>`.
-- `assert cond "msg"` → `assert(cond, "msg")` (function-call form).
-- `Map.lookup()` throws on a missing key rather than returning an optional —
-  `Map.member()` is the existence check, which is what a first-time
-  applicant's nullifier check actually needs.
-- Exported circuit parameters are treated as witness values by default; the
-  compiler rejects any read of them (directly or via a ledger `member`/
-  `insert` call) that reaches a public disclosure without an explicit
-  `disclose()`. This is a compiler-enforced guarantee, not a convention.
+`verifyAndApply` takes an `expiryTimestamp: Uint<64>` (Unix epoch seconds,
+set by the Candidate form's "Job posting expires in (days)" field) and
+rejects the proof outright once the ledger's block time reaches it, via
+Compact's `blockTimeLt`:
 
-## AI usage declaration
+```compact
+export ledger nullifierExpiry: Map<Bytes<32>, Uint<64>>;
 
-Claude Code was used to generate the code for this project, following the
-executable spec in `CLAUDE.md`. The business logic, the scoring formula
-design, and the contract's cryptographic design (attestation + nullifier +
-composite predicate + selective disclosure) were designed by me.
+export circuit verifyAndApply(
+                 // ...existing parameters...
+                 expiryTimestamp: Uint<64>
+                 ): [] {
+  // 0. Reject proofs for job postings that have already expired. Compared
+  //    against the ledger's own block time (blockTimeLt), not the client's
+  //    clock, so a candidate can't backdate an expired posting by lying
+  //    about the current time.
+  assert(blockTimeLt(disclose(expiryTimestamp)), "Job posting has expired!");
+
+  // ...attestation + replay checks...
+
+  usedNullifiers.insert(nullifier, true);
+  // Disclosure: the expiry this proof was checked against, stored
+  // alongside the nullifier so the check is auditable on-chain, not just
+  // asserted inside the proof.
+  nullifierExpiry.insert(nullifier, disclose(expiryTimestamp));
+  // ...
+}
+```
+
+`nullifierExpiry` is additive to the existing `usedNullifiers` map — it
+doesn't change the replay-protection logic, just records what expiry each
+nullifier was checked against. See `contracts/eligibility.test.ts` test 9
+("rejects a proof once the job posting's expiryTimestamp has passed").
+
+## Known limitations
+
+- **Proof generation is real, not mocked** — `verifyAndApply` runs through
+  the actual compiled circuit via `@midnight-ntwrk/compact-runtime` +
+  `@midnight-ntwrk/zkir-v2`, producing genuine PLONK proofs. The circuit's
+  own logic (valid/forged attestation, replay, threshold cases, and nullifier
+  expiry) is covered by an automated suite (`npm test`,
+  `contracts/eligibility.test.ts`, 9 cases) that executes the compiled
+  circuit directly — no proof server required. End-to-end proof generation
+  through the real PLONK pipeline is verified manually. The Docker proof
+  server gates the UI's live/mock indicator; if it's not running, the app
+  falls back to a local Mock Proof Mode automatically (which also enforces
+  nullifier expiry, so the demo behaves consistently either way).
+- **On-chain deployment to Preprod is not wired up** — blocked by a
+  version conflict in the published SDK: `@midnight-ntwrk/compact-js` pins
+  `compact-runtime` to `0.16.0` in every stable release, while this
+  contract is compiled against `0.19.0`. The only line that supports
+  `0.19.0` is a prerelease requiring a wallet SDK major bump
+  (`ledger-v8` → `ledger-v9`), which was out of scope for this hackathon
+  window. Documented in the `features` branch's commit history.
+
+## AI usage disclosure
+
+Built with Claude Code following a detailed PRD (`CLAUDE.md`, included in
+this repo); the scoring formula, contract design, and product decisions are
+the author's own.
 
 ## License
 

@@ -44,6 +44,24 @@ export const CANDIDATE_PRESETS: Record<"senior" | "junior", NamedCandidatePreset
   },
 };
 
+/**
+ * Default "Job posting expires in" preset shown on the Candidate form.
+ * The circuit itself only ever sees the resolved Unix timestamp — see
+ * `computeExpiryTimestamp` below and the `expiryTimestamp` parameter on
+ * `verifyAndApply` in contracts/eligibility.compact.
+ */
+export const DEFAULT_EXPIRY_DAYS = 30;
+
+/**
+ * Resolves a candidate-facing "expires in N days" preset into the Unix
+ * epoch seconds timestamp the circuit's `expiryTimestamp` parameter and
+ * `blockTimeLt` assertion expect. `expiresInDays` may be zero or negative
+ * so the demo can show the circuit rejecting an already-expired posting.
+ */
+export function computeExpiryTimestamp(expiresInDays: number, now: number = Date.now()): number {
+  return Math.floor(now / 1000) + Math.round(expiresInDays * 24 * 60 * 60);
+}
+
 export async function sha256Hex(input: string): Promise<string> {
   const bytes = new TextEncoder().encode(input);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
