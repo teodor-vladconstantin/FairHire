@@ -163,13 +163,26 @@ nullifier was checked against. See `contracts/eligibility.test.ts` test 9
   server gates the UI's live/mock indicator; if it's not running, the app
   falls back to a local Mock Proof Mode automatically (which also enforces
   nullifier expiry, so the demo behaves consistently either way).
-- **On-chain deployment to Preprod is not wired up** — blocked by a
-  version conflict in the published SDK: `@midnight-ntwrk/compact-js` pins
-  `compact-runtime` to `0.16.0` in every stable release, while this
-  contract is compiled against `0.19.0`. The only line that supports
-  `0.19.0` is a prerelease requiring a wallet SDK major bump
-  (`ledger-v8` → `ledger-v9`), which was out of scope for this hackathon
-  window. Documented in the `features` branch's commit history.
+- **Deployed to Preprod.** The `eligibility` contract is live on Midnight
+  Preprod:
+  - Contract address: `67502bdf1510382bcaafa156b51a4a10ddc2ed7c490190bcd9bb2b31d76f325a`
+  - Deployment tx: `00799e585b07ffa1bae3ba6f10504b4dbc53779f6280920d81f149011c19763819`
+  - Block height: `2319530`
+
+  Getting there took working through a real, documented Preprod issue
+  ([`midnightntwrk/servicedesk#52`](https://github.com/midnightntwrk/servicedesk/issues/52)):
+  a fresh wallet's cold DUST sync on Preprod is heavy enough (1M+ DUST
+  ledger events) that naive "reconnect and retry" deploy scripts never
+  actually finish syncing before attempting a spend, which surfaces as
+  `1010: Custom error: 170` (`InvalidDustSpendProof`) — not a bad proof,
+  just an incompletely-synced DUST state being asked to prove a spend.
+  `scripts/deploy-when-ready.ts` fixes this by keeping a single wallet
+  connection open for the whole run (so DUST sync accumulates instead of
+  restarting from zero on every attempt) and gating the actual deploy
+  attempt on `facade.waitForSyncedState()` — the SDK's own authoritative
+  "shielded + unshielded + dust are all caught up" signal — rather than
+  a heuristic. `scripts/deploy-contract.ts` remains the simpler one-shot
+  script for redeploying once a wallet is already synced.
 
 ## AI usage disclosure
 

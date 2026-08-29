@@ -62,14 +62,6 @@ export function computeExpiryTimestamp(expiresInDays: number, now: number = Date
   return Math.floor(now / 1000) + Math.round(expiresInDays * 24 * 60 * 60);
 }
 
-export async function sha256Hex(input: string): Promise<string> {
-  const bytes = new TextEncoder().encode(input);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
 export function generateCandidateSecret(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   return Array.from(bytes)
@@ -85,11 +77,12 @@ export function generateCandidateSecret(): string {
  * computed via the real Midnight runtime's `persistentHash` over the
  * aligned tuple encoding, not a generic string hash, since that's what the
  * circuit itself checks against. The runtime's `persistentHash` depends on
- * native WASM that only runs server-side, so this delegates to
- * src/app/api/attest/route.ts. Falls back to the previous local
- * approximation only if that request fails for any reason, so the app
- * never breaks outright — that fallback signature will not satisfy the
- * real circuit's assertion, so it only matters for Mock Proof Mode.
+ * native WASM that only runs server-side, so this delegates entirely to
+ * src/app/api/attest/route.ts. No client-side fallback: a fallback
+ * signature computed here would never satisfy the real circuit's
+ * assertion, so it would just mask a real server-side failure behind a
+ * proof that's guaranteed to be rejected later — better to fail fast and
+ * surface the real error.
  */
 export async function generateAttestation(
   matchScore: number,
@@ -108,25 +101,20 @@ async function computeIssuerSignature(
   matchScore: number,
   meetsMinCriteria: boolean
 ): Promise<string> {
-  try {
-    const res = await fetch("/api/attest", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ matchScore, meetsMinCriteria }),
-    });
-    if (!res.ok) {
-      throw new Error(`attest request failed: ${res.status}`);
-    }
-    const data = await res.json();
-    if (typeof data.issuerSignature !== "string") {
-      throw new Error("attest response missing issuerSignature");
-    }
-    return data.issuerSignature;
-  } catch (err) {
-    console.warn(
-      "Real persistentHash attestation unavailable, falling back to local approximation:",
-      err
+  const res = await fetch("/api/attest", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ matchScore, meetsMinCriteria }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(
+      typeof body?.error === "string" ? body.error : `attest request failed: ${res.status}`
     );
-    return sha256Hex(`${ISSUER_PUBLIC_KEY}:${matchScore}:${meetsMinCriteria}`);
   }
+  const data = await res.json();
+  if (typeof data.issuerSignature !== "string") {
+    throw new Error("attest response missing issuerSignature");
+  }
+  return data.issuerSignature;
 }
