@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   CircleSlash,
   Clock,
+  Rocket,
 } from "lucide-react";
 import { calculateMatchScore, SCORING_FORMULA_TEXT } from "@/lib/scoring";
 import {
@@ -22,6 +23,7 @@ import {
   generateCandidateSecret,
 } from "@/lib/issuer";
 import { generateProof, buildTransactionPayload } from "@/lib/midnight";
+import { useLocalStorageFlag } from "@/lib/useLocalStorageFlag";
 import type { Application } from "@/app/page";
 
 type PresetKey = keyof typeof CANDIDATE_PRESETS;
@@ -48,6 +50,7 @@ export default function CandidateView({ usedNullifiers, onSubmitted }: Props) {
   const [expiresInDays, setExpiresInDays] = useState(DEFAULT_EXPIRY_DAYS);
   const [step, setStep] = useState<GenerationStep>("idle");
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [introDismissed, dismissIntro] = useLocalStorageFlag("fairhire_intro_seen");
 
   const isGenerating = step !== "idle" && step !== "done";
   const preset = CANDIDATE_PRESETS[presetKey];
@@ -145,8 +148,37 @@ export default function CandidateView({ usedNullifiers, onSubmitted }: Props) {
     }
   }
 
+  if (!introDismissed) {
+    return (
+      <div className="mx-auto max-w-xl animate-rise-in">
+        <section
+          className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] p-8 text-center"
+          style={{ boxShadow: "var(--shadow-card), var(--hairline-top)" }}
+        >
+          <p className="eyebrow mb-2">Candidate</p>
+          <h2 className="mb-3 text-2xl font-semibold tracking-tight">
+            Prove you qualify — without exposing who you are
+          </h2>
+          <p className="mx-auto mb-6 max-w-md text-sm leading-relaxed text-[var(--muted)]">
+            Enter your qualification data, get a locally-computed match score, and generate a
+            real zero-knowledge proof the employer can check without ever seeing your name, age,
+            or raw profile.
+          </p>
+          <button
+            onClick={dismissIntro}
+            className="mx-auto flex items-center justify-center gap-2 rounded-[var(--radius-sm)] bg-gradient-to-r from-[var(--accent)] to-[var(--accent-2)] px-6 py-3 text-sm font-semibold text-white transition-transform duration-150 hover:scale-[1.02] active:scale-[0.98]"
+            style={{ boxShadow: "0 8px 20px -6px rgb(139 92 246 / 0.45)" }}
+          >
+            <Rocket className="h-4 w-4" aria-hidden />
+            Get started
+          </button>
+        </section>
+      </div>
+    );
+  }
+
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
+    <div className="grid gap-6 lg:grid-cols-2 animate-rise-in">
       <section
         className="rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] p-6"
         style={{ boxShadow: `var(--shadow-card), var(--hairline-top)` }}
@@ -156,7 +188,7 @@ export default function CandidateView({ usedNullifiers, onSubmitted }: Props) {
 
         <div role="radiogroup" aria-label="Profile preset" className="mb-5">
           <span className="mb-2 block text-sm text-[var(--muted)]">Profile preset</span>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {(Object.keys(CANDIDATE_PRESETS) as PresetKey[]).map((key) => {
               const active = presetKey === key;
               return (
@@ -165,7 +197,7 @@ export default function CandidateView({ usedNullifiers, onSubmitted }: Props) {
                   role="radio"
                   aria-checked={active}
                   onClick={() => setPresetKey(key)}
-                  className={`flex-1 rounded-[var(--radius-sm)] border px-3 py-2 text-sm font-medium transition-colors duration-150 ${
+                  className={`rounded-[var(--radius-sm)] border px-3 py-2 text-center text-xs font-medium leading-tight transition-colors duration-150 ${
                     active
                       ? "border-[var(--accent)]/50 bg-[var(--accent-soft)] text-[var(--foreground)]"
                       : "border-[var(--border)] text-[var(--muted)] hover:border-[var(--border-strong)] hover:text-[var(--foreground)]"

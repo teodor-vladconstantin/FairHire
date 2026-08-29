@@ -159,21 +159,30 @@ nullifier was checked against. See `contracts/eligibility.test.ts` test 9
   expiry) is covered by an automated suite (`npm test`,
   `contracts/eligibility.test.ts`, 9 cases) that executes the compiled
   circuit directly — no proof server required. End-to-end proof generation
-  through the real PLONK pipeline is verified manually. The Docker proof
-  server gates the UI's live/mock indicator; if it's not running, the app
-  falls back to a local Mock Proof Mode automatically (which also enforces
-  nullifier expiry, so the demo behaves consistently either way).
-- **On-chain deployment to Preprod is in progress** — previously blocked by
-  a version conflict between the published SDK (`@midnight-ntwrk/compact-js`
-  pins `compact-runtime` to `0.16.0` in every stable release) and this
-  contract, which was compiled against `0.19.0` (documented in the
-  `features` branch's commit history). That was a resolvable version
-  mismatch, not an unresolvable upstream gap: the contract's
-  `pragma language_version >= 0.23.0` matches Preprod's current stable
-  toolchain (compiler `0.31.1`, runtime `0.16.0`), so recompiling against it
-  brings the contract and SDK back in line. Deployment is now underway —
-  the wallet is funded and DUST accrual is pending as of this session.
-  *(Deployed contract address to be added here once deployment confirms.)*
+  through the real PLONK pipeline is verified manually. There is no
+  simulated fallback: `src/app/api/generate-proof/route.ts` always runs the
+  real compiled circuit, and if proof generation fails or times out, the
+  error propagates to the UI as-is rather than substituting a fake result.
+- **Deployed to Preprod.** The `eligibility` contract is live on Midnight
+  Preprod:
+  - Contract address: `67502bdf1510382bcaafa156b51a4a10ddc2ed7c490190bcd9bb2b31d76f325a`
+  - Deployment tx: `00799e585b07ffa1bae3ba6f10504b4dbc53779f6280920d81f149011c19763819`
+  - Block height: `2319530`
+
+  Getting there took working through a real, documented Preprod issue
+  ([`midnightntwrk/servicedesk#52`](https://github.com/midnightntwrk/servicedesk/issues/52)):
+  a fresh wallet's cold DUST sync on Preprod is heavy enough (1M+ DUST
+  ledger events) that naive "reconnect and retry" deploy scripts never
+  actually finish syncing before attempting a spend, which surfaces as
+  `1010: Custom error: 170` (`InvalidDustSpendProof`) — not a bad proof,
+  just an incompletely-synced DUST state being asked to prove a spend.
+  `scripts/deploy-when-ready.ts` fixes this by keeping a single wallet
+  connection open for the whole run (so DUST sync accumulates instead of
+  restarting from zero on every attempt) and gating the actual deploy
+  attempt on `facade.waitForSyncedState()` — the SDK's own authoritative
+  "shielded + unshielded + dust are all caught up" signal — rather than
+  a heuristic. `scripts/deploy-contract.ts` remains the simpler one-shot
+  script for redeploying once a wallet is already synced.
 
 ## AI usage disclosure
 

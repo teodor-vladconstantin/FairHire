@@ -23,7 +23,25 @@ export interface NamedCandidatePreset extends CandidateProfile {
   fictionalAge: number;
 }
 
-export const CANDIDATE_PRESETS: Record<"senior" | "junior", NamedCandidatePreset> = {
+/**
+ * Five presets spanning the scoring formula's range against the Candidate
+ * form's default thresholds (minYears: 3, skillsReq: 10, minScore: 50), so
+ * a demo can show the formula handling more than just "clearly qualifies"
+ * vs. "clearly doesn't":
+ *
+ *   preset        | matchScore | qualifies | why
+ *   senior        |     92     |    yes    | high on every axis
+ *   overqualified |     76     |    yes    | high exp/skills, NOT certified —
+ *                 |            |           | shows certification isn't the
+ *                 |            |           | sole gatekeeper
+ *   mid           |     60     |    yes    | moderate exp/skills, uncertified
+ *   junior        |     25     |    no     | below minYears, low skills
+ *   underqualified|      4     |    no     | far below minYears and skills
+ */
+export const CANDIDATE_PRESETS: Record<
+  "senior" | "overqualified" | "mid" | "junior" | "underqualified",
+  NamedCandidatePreset
+> = {
   senior: {
     label: "Senior Candidate",
     fictionalName: "Alex Morgan",
@@ -33,12 +51,39 @@ export const CANDIDATE_PRESETS: Record<"senior" | "junior", NamedCandidatePreset
     totalSkillsRequired: 10,
     hasCertification: true,
   },
+  overqualified: {
+    label: "Overqualified (No Cert)",
+    fictionalName: "Priya Chen",
+    fictionalAge: 41,
+    yearsExperience: 7,
+    skillsMatched: 9,
+    totalSkillsRequired: 10,
+    hasCertification: false,
+  },
+  mid: {
+    label: "Mid-Level Candidate",
+    fictionalName: "Sam Rivera",
+    fictionalAge: 29,
+    yearsExperience: 3,
+    skillsMatched: 5,
+    totalSkillsRequired: 10,
+    hasCertification: false,
+  },
   junior: {
     label: "Junior Candidate",
     fictionalName: "Jamie Lee",
     fictionalAge: 23,
     yearsExperience: 1,
     skillsMatched: 3,
+    totalSkillsRequired: 10,
+    hasCertification: false,
+  },
+  underqualified: {
+    label: "Underqualified Candidate",
+    fictionalName: "Taylor Brooks",
+    fictionalAge: 22,
+    yearsExperience: 0,
+    skillsMatched: 1,
     totalSkillsRequired: 10,
     hasCertification: false,
   },
@@ -62,14 +107,6 @@ export function computeExpiryTimestamp(expiresInDays: number, now: number = Date
   return Math.floor(now / 1000) + Math.round(expiresInDays * 24 * 60 * 60);
 }
 
-export async function sha256Hex(input: string): Promise<string> {
-  const bytes = new TextEncoder().encode(input);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
 export function generateCandidateSecret(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   return Array.from(bytes)
@@ -85,11 +122,12 @@ export function generateCandidateSecret(): string {
  * computed via the real Midnight runtime's `persistentHash` over the
  * aligned tuple encoding, not a generic string hash, since that's what the
  * circuit itself checks against. The runtime's `persistentHash` depends on
- * native WASM that only runs server-side, so this delegates to
- * src/app/api/attest/route.ts. Falls back to the previous local
- * approximation only if that request fails for any reason, so the app
- * never breaks outright — that fallback signature will not satisfy the
- * real circuit's assertion, so it only matters for Mock Proof Mode.
+ * native WASM that only runs server-side, so this delegates entirely to
+ * src/app/api/attest/route.ts. No client-side fallback: a fallback
+ * signature computed here would never satisfy the real circuit's
+ * assertion, so it would just mask a real server-side failure behind a
+ * proof that's guaranteed to be rejected later — better to fail fast and
+ * surface the real error.
  */
 export async function generateAttestation(
   matchScore: number,
@@ -108,25 +146,20 @@ async function computeIssuerSignature(
   matchScore: number,
   meetsMinCriteria: boolean
 ): Promise<string> {
-  try {
-    const res = await fetch("/api/attest", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ matchScore, meetsMinCriteria }),
-    });
-    if (!res.ok) {
-      throw new Error(`attest request failed: ${res.status}`);
-    }
-    const data = await res.json();
-    if (typeof data.issuerSignature !== "string") {
-      throw new Error("attest response missing issuerSignature");
-    }
-    return data.issuerSignature;
-  } catch (err) {
-    console.warn(
-      "Real persistentHash attestation unavailable, falling back to local approximation:",
-      err
+  const res = await fetch("/api/attest", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ matchScore, meetsMinCriteria }),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(
+      typeof body?.error === "string" ? body.error : `attest request failed: ${res.status}`
     );
-    return sha256Hex(`${ISSUER_PUBLIC_KEY}:${matchScore}:${meetsMinCriteria}`);
   }
+  const data = await res.json();
+  if (typeof data.issuerSignature !== "string") {
+    throw new Error("attest response missing issuerSignature");
+  }
+  return data.issuerSignature;
 }

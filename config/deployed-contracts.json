@@ -1,0 +1,10 @@
+{
+  "eligibility": {
+    "address": "67502bdf1510382bcaafa156b51a4a10ddc2ed7c490190bcd9bb2b31d76f325a",
+    "network": "preprod",
+    "txId": "00799e585b07ffa1bae3ba6f10504b4dbc53779f6280920d81f149011c19763819",
+    "blockHeight": 2319530,
+    "deployerUnshieldedAddress": "mn_addr_preprod1fky5vk9jnazpg0y97uqqjwks6zx3uv3fzjmtstnlhy26ffu9chwq35rp0p",
+    "deployedAt": "2026-08-29T18:56:09.084Z"
+  }
+}

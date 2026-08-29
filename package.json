@@ -32,7 +32,7 @@
     "@midnight-ntwrk/midnight-js-protocol": "^4.1.1",
     "@midnight-ntwrk/midnight-js-types": "^4.1.1",
     "@midnight-ntwrk/midnight-js-utils": "^4.1.1",
-    "@midnightntwrk/wallet-sdk": "^1.2.0",
+    "@midnightntwrk/wallet-sdk": "1.2.0",
     "@tailwindcss/postcss": "4.3.3",
     "@types/node": "22.10.5",
     "@types/react": "19.2.18",

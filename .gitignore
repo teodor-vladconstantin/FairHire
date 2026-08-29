@@ -36,5 +36,9 @@ contracts/managed/
 # itself lives in the separate wallet-setup project, never here)
 /.dapp-state/
 
+# LevelDB-backed private state written by the dev server's proof/attest
+# routes — same nature as /.dapp-state/ above: machine-local, regenerable.
+/midnight-level-db/
+
 # claude code local session state
 .claude/
