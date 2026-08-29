@@ -1,6 +1,8 @@
 "use client";
 
-import { CheckCircle2, CircleSlash, ShieldOff, EyeOff, Search } from "lucide-react";
+import { useState } from "react";
+import { CheckCircle2, CircleSlash, ShieldOff, EyeOff, Search, QrCode } from "lucide-react";
+import ResultQr from "@/components/ResultQr";
 import RoiCalculator from "@/components/RoiCalculator";
 import type { Application } from "@/app/page";
 
@@ -50,55 +52,8 @@ export default function EmployerView({ applications, qualifiesCount, usedNullifi
           </div>
         ) : (
           <ul className="divide-y divide-[var(--border)]">
-            {applications.map((app, i) => (
-              <li
-                key={app.id}
-                className="flex flex-col gap-3 px-6 py-4 transition-colors duration-150 hover:bg-[var(--surface-2)]/50 animate-rise-in sm:flex-row sm:items-center sm:justify-between"
-                style={{ animationDelay: i === 0 ? "0ms" : undefined }}
-              >
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
-                    {app.qualifies ? (
-                      <CheckCircle2 className="h-4 w-4 shrink-0 text-[var(--success)]" aria-hidden />
-                    ) : (
-                      <CircleSlash className="h-4 w-4 shrink-0 text-[var(--neutral-outcome)]" aria-hidden />
-                    )}
-                    <span className="truncate">{app.jobId}</span>
-                    <span
-                      className={`rounded-full px-2 py-0.5 font-mono-ui text-[0.65rem] tracking-wide ${
-                        app.mode === "live"
-                          ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-                          : "bg-[var(--surface-2)] text-[var(--muted)]"
-                      }`}
-                    >
-                      {app.mode === "live" ? "PROOF SERVER" : "MOCK PROOF"}
-                    </span>
-                  </div>
-                  <div className="font-mono-ui mt-1.5 flex items-center gap-1.5 truncate text-xs text-[var(--muted)]">
-                    <ShieldOff className="h-3 w-3 shrink-0" aria-hidden />
-                    {app.nullifier.slice(0, 24)}…
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <span
-                    className={`rounded-[var(--radius-sm)] px-3 py-1 font-mono-ui text-[0.7rem] font-semibold tracking-wide ${
-                      app.qualifies
-                        ? "bg-[var(--success-soft)] text-[var(--success)]"
-                        : "bg-[var(--neutral-outcome-soft)] text-[var(--neutral-outcome)]"
-                    }`}
-                  >
-                    {app.qualifies ? "QUALIFIED" : "NOT QUALIFIED"}
-                  </span>
-                  <button
-                    onClick={() => onInspect(app)}
-                    className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--muted)] transition-colors duration-150 hover:border-[var(--accent)]/50 hover:text-[var(--foreground)]"
-                  >
-                    <Search className="h-3 w-3" aria-hidden />
-                    Inspect payload
-                  </button>
-                </div>
-              </li>
+            {applications.map((app) => (
+              <ApplicationRow key={app.id} app={app} onInspect={onInspect} />
             ))}
           </ul>
         )}
@@ -124,5 +79,84 @@ function StatCard({ label, value, accent }: { label: string; value: number; acce
         {value}
       </div>
     </div>
+  );
+}
+
+function ApplicationRow({
+  app,
+  onInspect,
+}: {
+  app: Application;
+  onInspect: (app: Application) => void;
+}) {
+  const [showQr, setShowQr] = useState(false);
+
+  return (
+    <li
+      className={`flex flex-col gap-3 px-6 py-4 transition-colors duration-150 animate-rise-in sm:flex-row sm:items-center sm:justify-between ${
+        app.qualifies
+          ? "bg-gradient-to-r from-transparent to-[var(--success-soft)] hover:to-[var(--success-soft)]"
+          : "hover:bg-[var(--surface-2)]/50"
+      }`}
+    >
+      <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
+            {app.qualifies ? (
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-[var(--success)]" aria-hidden />
+            ) : (
+              <CircleSlash className="h-4 w-4 shrink-0 text-[var(--neutral-outcome)]" aria-hidden />
+            )}
+            <span className="truncate">{app.jobId}</span>
+            <span
+              className={`rounded-full px-2 py-0.5 font-mono-ui text-[0.65rem] tracking-wide ${
+                app.mode === "live"
+                  ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+                  : "bg-[var(--surface-2)] text-[var(--muted)]"
+              }`}
+            >
+              {app.mode === "live" ? "PROOF SERVER" : "MOCK PROOF"}
+            </span>
+          </div>
+          <div className="font-mono-ui mt-1.5 flex items-center gap-1.5 truncate text-xs text-[var(--muted)]">
+            <ShieldOff className="h-3 w-3 shrink-0" aria-hidden />
+            {app.nullifier.slice(0, 24)}…
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span
+            className={`rounded-[var(--radius-sm)] px-3 py-1 font-mono-ui text-[0.7rem] font-semibold tracking-wide ${
+              app.qualifies
+                ? "bg-[var(--success-soft)] text-[var(--success)]"
+                : "bg-[var(--neutral-outcome-soft)] text-[var(--neutral-outcome)]"
+            }`}
+          >
+            {app.qualifies ? "QUALIFIED" : "NOT QUALIFIED"}
+          </span>
+          <button
+            onClick={() => setShowQr((v) => !v)}
+            aria-expanded={showQr}
+            className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--muted)] transition-colors duration-150 hover:border-[var(--accent)]/50 hover:text-[var(--foreground)]"
+          >
+            <QrCode className="h-3 w-3" aria-hidden />
+            {showQr ? "Hide QR" : "Show QR"}
+          </button>
+          <button
+            onClick={() => onInspect(app)}
+            className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--muted)] transition-colors duration-150 hover:border-[var(--accent)]/50 hover:text-[var(--foreground)]"
+          >
+            <Search className="h-3 w-3" aria-hidden />
+            Inspect payload
+          </button>
+        </div>
+      </div>
+
+      {showQr && (
+        <div className="w-full animate-fade-in sm:pl-6">
+          <ResultQr application={{ jobId: app.jobId, qualifies: app.qualifies, nullifier: app.nullifier }} />
+        </div>
+      )}
+    </li>
   );
 }
