@@ -1,8 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { CheckCircle2, CircleSlash, ShieldOff, EyeOff, Search, QrCode } from "lucide-react";
-import ResultQr from "@/components/ResultQr";
+import { CheckCircle2, CircleSlash, ShieldOff, EyeOff, Search } from "lucide-react";
 import RoiCalculator from "@/components/RoiCalculator";
 import type { Application } from "@/app/page";
 
@@ -89,8 +87,6 @@ function ApplicationRow({
   app: Application;
   onInspect: (app: Application) => void;
 }) {
-  const [showQr, setShowQr] = useState(false);
-
   return (
     <li
       className={`flex flex-col gap-3 px-6 py-4 transition-colors duration-150 animate-rise-in sm:flex-row sm:items-center sm:justify-between ${
@@ -135,14 +131,6 @@ function ApplicationRow({
             {app.qualifies ? "QUALIFIED" : "NOT QUALIFIED"}
           </span>
           <button
-            onClick={() => setShowQr((v) => !v)}
-            aria-expanded={showQr}
-            className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--muted)] transition-colors duration-150 hover:border-[var(--accent)]/50 hover:text-[var(--foreground)]"
-          >
-            <QrCode className="h-3 w-3" aria-hidden />
-            {showQr ? "Hide QR" : "Show QR"}
-          </button>
-          <button
             onClick={() => onInspect(app)}
             className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-[var(--border)] px-3 py-1.5 text-xs text-[var(--muted)] transition-colors duration-150 hover:border-[var(--accent)]/50 hover:text-[var(--foreground)]"
           >
@@ -151,12 +139,6 @@ function ApplicationRow({
           </button>
         </div>
       </div>
-
-      {showQr && (
-        <div className="w-full animate-fade-in sm:pl-6">
-          <ResultQr application={{ jobId: app.jobId, qualifies: app.qualifies, nullifier: app.nullifier }} />
-        </div>
-      )}
     </li>
   );
 }
