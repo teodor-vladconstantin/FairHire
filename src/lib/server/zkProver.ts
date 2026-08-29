@@ -36,9 +36,10 @@ const CONTRACT_DIR = path.join(PROJECT_ROOT, "contracts", "managed", "eligibilit
 
 // Candidate directories for the Compact compiler's BLS trusted-setup
 // parameter cache (`bls_midnight_2p<k>`). Tries a project-local copy first
-// (see .zk-params/, gitignored — copy it from the machine's Compact CLI
-// cache), then falls back to the CLI's own cache location so this also
-// works unmodified on a machine where `compact compile` has already run.
+// (see .zk-params/, committed to the repo so this also works on Vercel,
+// which has no Compact CLI to fetch these itself), then falls back to the
+// CLI's own cache location so this also works unmodified on a machine
+// where `compact compile` has already run.
 const PARAMS_DIR_CANDIDATES = [
   path.join(PROJECT_ROOT, ".zk-params"),
   path.join(os.homedir(), ".cache", "midnight", "zk-params"),

@@ -5,3 +5,10 @@
 *.prover binary
 *.verifier binary
 *.bzkir binary
+
+# .zk-params/ holds the Compact compiler's public BLS trusted-setup
+# parameters (bls_midnight_2p<k> — a shared, publicly-known constant per
+# circuit size, not a secret or machine-specific value), committed for the
+# same reason as contracts/managed/ above: Vercel's runtime needs them and
+# has no Compact CLI to (re)fetch them. Also genuinely binary.
+.zk-params/* binary
