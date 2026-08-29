@@ -23,7 +23,25 @@ export interface NamedCandidatePreset extends CandidateProfile {
   fictionalAge: number;
 }
 
-export const CANDIDATE_PRESETS: Record<"senior" | "junior", NamedCandidatePreset> = {
+/**
+ * Five presets spanning the scoring formula's range against the Candidate
+ * form's default thresholds (minYears: 3, skillsReq: 10, minScore: 50), so
+ * a demo can show the formula handling more than just "clearly qualifies"
+ * vs. "clearly doesn't":
+ *
+ *   preset        | matchScore | qualifies | why
+ *   senior        |     92     |    yes    | high on every axis
+ *   overqualified |     76     |    yes    | high exp/skills, NOT certified —
+ *                 |            |           | shows certification isn't the
+ *                 |            |           | sole gatekeeper
+ *   mid           |     60     |    yes    | moderate exp/skills, uncertified
+ *   junior        |     25     |    no     | below minYears, low skills
+ *   underqualified|      4     |    no     | far below minYears and skills
+ */
+export const CANDIDATE_PRESETS: Record<
+  "senior" | "overqualified" | "mid" | "junior" | "underqualified",
+  NamedCandidatePreset
+> = {
   senior: {
     label: "Senior Candidate",
     fictionalName: "Alex Morgan",
@@ -33,12 +51,39 @@ export const CANDIDATE_PRESETS: Record<"senior" | "junior", NamedCandidatePreset
     totalSkillsRequired: 10,
     hasCertification: true,
   },
+  overqualified: {
+    label: "Overqualified (No Cert)",
+    fictionalName: "Priya Chen",
+    fictionalAge: 41,
+    yearsExperience: 7,
+    skillsMatched: 9,
+    totalSkillsRequired: 10,
+    hasCertification: false,
+  },
+  mid: {
+    label: "Mid-Level Candidate",
+    fictionalName: "Sam Rivera",
+    fictionalAge: 29,
+    yearsExperience: 3,
+    skillsMatched: 5,
+    totalSkillsRequired: 10,
+    hasCertification: false,
+  },
   junior: {
     label: "Junior Candidate",
     fictionalName: "Jamie Lee",
     fictionalAge: 23,
     yearsExperience: 1,
     skillsMatched: 3,
+    totalSkillsRequired: 10,
+    hasCertification: false,
+  },
+  underqualified: {
+    label: "Underqualified Candidate",
+    fictionalName: "Taylor Brooks",
+    fictionalAge: 22,
+    yearsExperience: 0,
+    skillsMatched: 1,
     totalSkillsRequired: 10,
     hasCertification: false,
   },
