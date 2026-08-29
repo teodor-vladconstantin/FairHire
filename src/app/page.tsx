@@ -28,7 +28,7 @@ export interface Application {
   qualifies: boolean;
   nullifier: string;
   zkProof: string;
-  mode: "live" | "mock";
+  mode: "live";
   timestamp: number;
   payload: TransactionPayload;
   rawCandidateInput: RawCandidateInput;

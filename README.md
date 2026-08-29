@@ -159,10 +159,10 @@ nullifier was checked against. See `contracts/eligibility.test.ts` test 9
   expiry) is covered by an automated suite (`npm test`,
   `contracts/eligibility.test.ts`, 9 cases) that executes the compiled
   circuit directly — no proof server required. End-to-end proof generation
-  through the real PLONK pipeline is verified manually. The Docker proof
-  server gates the UI's live/mock indicator; if it's not running, the app
-  falls back to a local Mock Proof Mode automatically (which also enforces
-  nullifier expiry, so the demo behaves consistently either way).
+  through the real PLONK pipeline is verified manually. There is no
+  simulated fallback: `src/app/api/generate-proof/route.ts` always runs the
+  real compiled circuit, and if proof generation fails or times out, the
+  error propagates to the UI as-is rather than substituting a fake result.
 - **Deployed to Preprod.** The `eligibility` contract is live on Midnight
   Preprod:
   - Contract address: `67502bdf1510382bcaafa156b51a4a10ddc2ed7c490190bcd9bb2b31d76f325a`

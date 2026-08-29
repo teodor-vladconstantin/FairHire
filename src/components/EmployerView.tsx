@@ -104,15 +104,6 @@ function ApplicationRow({
               <CircleSlash className="h-4 w-4 shrink-0 text-[var(--neutral-outcome)]" aria-hidden />
             )}
             <span className="truncate">{app.jobId}</span>
-            <span
-              className={`rounded-full px-2 py-0.5 font-mono-ui text-[0.65rem] tracking-wide ${
-                app.mode === "live"
-                  ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-                  : "bg-[var(--surface-2)] text-[var(--muted)]"
-              }`}
-            >
-              {app.mode === "live" ? "PROOF SERVER" : "MOCK PROOF"}
-            </span>
           </div>
           <div className="font-mono-ui mt-1.5 flex items-center gap-1.5 truncate text-xs text-[var(--muted)]">
             <ShieldOff className="h-3 w-3 shrink-0" aria-hidden />
