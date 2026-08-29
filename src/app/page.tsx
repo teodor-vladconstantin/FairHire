@@ -6,6 +6,8 @@ import CandidateView from "@/components/CandidateView";
 import EmployerView from "@/components/EmployerView";
 import PayloadInspector from "@/components/PayloadInspector";
 import ComparisonView from "@/components/ComparisonView";
+import TutorialModal from "@/components/TutorialModal";
+import ContractStatusBadge from "@/components/ContractStatusBadge";
 import type { TransactionPayload } from "@/lib/midnight";
 
 export interface RawCandidateInput {
@@ -57,8 +59,10 @@ export default function Home() {
 
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+      <TutorialModal />
+
       <header className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-gradient-to-br from-[var(--accent)] to-[var(--accent-2)]"
             style={{ boxShadow: "0 8px 20px -6px rgb(139 92 246 / 0.55)" }}
@@ -71,6 +75,7 @@ export default function Home() {
               Bias-free candidate screening, proven with zero-knowledge on Midnight
             </p>
           </div>
+          <ContractStatusBadge />
         </div>
 
         <nav
