@@ -163,13 +163,17 @@ nullifier was checked against. See `contracts/eligibility.test.ts` test 9
   server gates the UI's live/mock indicator; if it's not running, the app
   falls back to a local Mock Proof Mode automatically (which also enforces
   nullifier expiry, so the demo behaves consistently either way).
-- **On-chain deployment to Preprod is not wired up** — blocked by a
-  version conflict in the published SDK: `@midnight-ntwrk/compact-js` pins
-  `compact-runtime` to `0.16.0` in every stable release, while this
-  contract is compiled against `0.19.0`. The only line that supports
-  `0.19.0` is a prerelease requiring a wallet SDK major bump
-  (`ledger-v8` → `ledger-v9`), which was out of scope for this hackathon
-  window. Documented in the `features` branch's commit history.
+- **On-chain deployment to Preprod is in progress** — previously blocked by
+  a version conflict between the published SDK (`@midnight-ntwrk/compact-js`
+  pins `compact-runtime` to `0.16.0` in every stable release) and this
+  contract, which was compiled against `0.19.0` (documented in the
+  `features` branch's commit history). That was a resolvable version
+  mismatch, not an unresolvable upstream gap: the contract's
+  `pragma language_version >= 0.23.0` matches Preprod's current stable
+  toolchain (compiler `0.31.1`, runtime `0.16.0`), so recompiling against it
+  brings the contract and SDK back in line. Deployment is now underway —
+  the wallet is funded and DUST accrual is pending as of this session.
+  *(Deployed contract address to be added here once deployment confirms.)*
 
 ## AI usage disclosure
 
