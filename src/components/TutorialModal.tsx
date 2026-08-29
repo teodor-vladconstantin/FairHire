@@ -54,7 +54,7 @@ export default function TutorialModal() {
   const [stepIndex, setStepIndex] = useState(0);
   const [closing, setClosing] = useState(false);
 
-  if (seen && !closing) return null;
+  if (seen) return null;
 
   function handleClose() {
     setClosing(true);
